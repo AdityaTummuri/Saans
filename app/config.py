@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -47,7 +48,8 @@ class Settings(BaseSettings):
     rate_limit_per_minute: int = 10
     rate_limit_burst: int = 5
     # Behind Cloud Run the last X-Forwarded-For hop is the real client address.
-    trust_proxy_headers: bool = False
+    # Cloud Run sets K_SERVICE, so the header is trusted there and nowhere else by default.
+    trust_proxy_headers: bool = Field(default_factory=lambda: "K_SERVICE" in os.environ)
 
 
 @lru_cache

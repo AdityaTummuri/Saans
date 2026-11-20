@@ -12,6 +12,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.gzip import GZipMiddleware
 
 from app.api.ratelimit import TokenBucketLimiter
 from app.api.routes import router
@@ -80,6 +81,7 @@ def create_app(
 
     app = FastAPI(title="Saans", lifespan=lifespan, docs_url=None, redoc_url=None)
     install_security(app, settings)
+    app.add_middleware(GZipMiddleware, minimum_size=1024)
     app.include_router(router)
 
     @app.exception_handler(RequestValidationError)

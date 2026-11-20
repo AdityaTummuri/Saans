@@ -289,3 +289,18 @@ def test_live_mode_without_key_disables_data_endpoints() -> None:
         assert c.get("/healthz").json()["mode"] == "live"
         res = c.post("/api/plan", json={"household": household_json()})
     assert res.status_code == 503 and res.json()["error"] == "not_configured"
+
+
+def test_large_responses_are_gzipped(client: TestClient) -> None:
+    res = client.post(
+        "/api/plan", json={"household": household_json()}, headers={"accept-encoding": "gzip"}
+    )
+    assert res.headers["content-encoding"] == "gzip"
+    assert res.json()["plan"]["actions"]  # still decodes to the same JSON
+
+
+def test_proxy_headers_are_trusted_only_on_cloud_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("K_SERVICE", raising=False)
+    assert Settings(_env_file=None).trust_proxy_headers is False  # type: ignore[call-arg]
+    monkeypatch.setenv("K_SERVICE", "saans")
+    assert Settings(_env_file=None).trust_proxy_headers is True  # type: ignore[call-arg]
