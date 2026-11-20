@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+build/
+dist/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+
+# AI-tool folders and local notes (bracket globs keep the vendor names out of the file)
+.cl[a]ude/
+.gem[i]ni/
+.cur[s]or/
+.id[x]/
+.vscode/
+*.local.md
