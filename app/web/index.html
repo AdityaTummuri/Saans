@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en" data-large="off">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Saans: Household Air-Exposure Planner</title>
+  <meta name="description" content="Saans plans a family's day around winter smog. It turns each member's inhaled dose of PM2.5 into exact, ranked actions for activities, commutes and indoor air.">
+  <meta name="theme-color" content="#0A6B58">
+  <meta property="og:title" content="Saans: Household Air-Exposure Planner">
+  <meta property="og:description" content="Plan your family's day around the air, with an exact number on every suggestion.">
+  <meta property="og:type" content="website">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip" href="#main" data-i18n="skip">Skip to content</a>
+
+  <header class="site">
+    <div class="wrap topbar">
+      <a class="brand" href="#top" aria-label="Saans">
+        <svg class="mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+          <rect width="64" height="64" rx="16"/>
+          <g fill="none" stroke-width="4.5" stroke-linecap="round">
+            <path d="M14 24h22a7 7 0 1 0-7-7"/><path d="M14 33h30a7 7 0 1 1-7 7"/><path d="M14 42h14"/>
+          </g>
+        </svg>
+        <span class="name">Saans</span>
+        <span class="tag" data-i18n="brand.tag">Household air-exposure planner</span>
+      </a>
+      <nav aria-label="Main" data-i18n-attr="aria-label:nav.label">
+        <a href="#how" data-i18n="nav.how">How it works</a>
+        <a href="#start" data-i18n="nav.start">Your household</a>
+        <a href="#results" data-i18n="nav.plan" id="nav-plan" hidden>Today’s plan</a>
+      </nav>
+      <div class="tools">
+        <button type="button" class="tool" id="lang-btn" lang="hi" aria-label="Switch to Hindi" data-i18n-attr="aria-label:lang.switch_label">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="icons.svg#language"/></svg>
+          <span data-i18n="lang.switch">हिन्दी</span>
+        </button>
+        <button type="button" class="tool" id="large-btn" aria-pressed="false">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="icons.svg#text-size"/></svg>
+          <span data-i18n="text.large">Larger text</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero" id="top" data-enter aria-labelledby="hero-title">
+      <div class="breath" aria-hidden="true">
+        <svg viewBox="0 0 600 600" focusable="false">
+          <circle class="ring r1" cx="300" cy="300" r="120"/>
+          <circle class="ring r2" cx="300" cy="300" r="180"/>
+          <circle class="ring r3" cx="300" cy="300" r="240"/>
+          <circle class="ring r4" cx="300" cy="300" r="290"/>
+        </svg>
+        <span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span>
+        <span class="dot d4"></span><span class="dot d5"></span><span class="dot d6"></span>
+        <span class="dot d7"></span><span class="dot d8"></span>
+      </div>
+      <div class="wrap hero-grid">
+        <div class="hero-copy">
+          <p class="eyebrow" data-i18n="hero.eyebrow">Winter smog is a dose problem</p>
+          <h1 id="hero-title" data-i18n="hero.title">Plan your family’s day around the air, not just the AQI.</h1>
+          <p class="lede" data-i18n="hero.lede">Saans treats each family member as a person breathing a measurable dose of pollution, then rearranges the day to cut it. Every suggestion comes with an exact number.</p>
+          <div class="actions">
+            <button type="button" class="btn primary" id="hero-demo">
+              <span data-i18n="hero.cta_demo">Try the demo family</span>
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="icons.svg#arrow-right"/></svg>
+            </button>
+            <a class="btn secondary" href="#start" data-i18n="hero.cta_describe">Describe your family</a>
+          </div>
+          <ul class="facts">
+            <li><svg class="icon" aria-hidden="true" focusable="false"><use href="icons.svg#shield"/></svg><span data-i18n="hero.fact1">A tested engine does the maths</span></li>
+            <li><svg class="icon" aria-hidden="true" focusable="false"><use href="icons.svg#sparkle"/></svg><span data-i18n="hero.fact2">Gemini explains and never invents a number</span></li>
+            <li><svg class="icon" aria-hidden="true" focusable="false"><use href="icons.svg#home"/></svg><span data-i18n="hero.fact3">Your profile stays in this browser</span></li>
+          </ul>
+        </div>
+        <div class="hero-card" role="group" aria-labelledby="ex-title">
+          <div class="ex-head">
+            <span class="chip tag-chip" data-i18n="ex.tag">Example</span>
+            <svg class="icon lg" aria-hidden="true" focusable="false"><use href="icons.svg#shuffle"/></svg>
+          </div>
+          <h2 id="ex-title" data-i18n="ex.title">Football practice, Aarav</h2>
+          <p class="shift" data-i18n="ex.shift">Move from 4:00 pm to 2:00 pm</p>
+          <div class="ex-strip" aria-hidden="true">
+            <span class="c cat-very_poor"></span><span class="c cat-very_poor"></span>
+            <span class="c cat-very_poor"></span><span class="c cat-very_poor"></span>
+            <span class="c cat-very_poor"></span><span class="c cat-very_poor"></span>
+            <span class="c cat-severe"></span><span class="c cat-severe"></span>
+            <span class="pin pin-old"></span><span class="pin pin-new"></span>
+          </div>
+          <dl class="ex-stats">
+            <div><dt data-i18n="ex.pm_label">Forecast PM2.5</dt><dd data-i18n="ex.pm_value">240 → 140 µg/m³</dd></div>
+            <div><dt data-i18n="ex.dose_label">Inhaled dose</dt><dd class="good" data-i18n="ex.dose_value">about 42% lower</dd></div>
+          </dl>
+        </div>
+      </div>
+    </section>
+
+    <section class="band" id="how" aria-labelledby="how-title">
+      <div class="wrap">
+        <h2 id="how-title" class="section-title" data-i18n="how.title">Three ways to breathe less, one ledger to prove it</h2>
+        <div class="pillars">
+          <article class="pillar">
+            <span class="ico"><svg class="icon lg" aria-hidden="true" focusable="false"><use href="icons.svg#lungs"/></svg></span>
+            <h3 data-i18n="how.p1.t">Breathe less</h3>
+            <p data-i18n="how.p1.d"></p>
+          </article>
+          <article class="pillar">
+            <span class="ico"><svg class="icon lg" aria-hidden="true" focusable="false"><use href="icons.svg#purifier"/></svg></span>
+            <h3 data-i18n="how.p2.t">Clean indoor air</h3>
+            <p data-i18n="how.p2.d"></p>
+          </article>
+          <article class="pillar">
+            <span class="ico"><svg class="icon lg" aria-hidden="true" focusable="false"><use href="icons.svg#leaf"/></svg></span>
+            <h3 data-i18n="how.p3.t">Emit less</h3>
+            <p data-i18n="how.p3.d"></p>
+          </article>
+          <article class="pillar ledger-pillar">
+            <span class="ico"><svg class="icon lg" aria-hidden="true" focusable="false"><use href="icons.svg#ladder"/></svg></span>
+            <h3 data-i18n="how.p4.t">The Exposure Ledger</h3>
+            <p data-i18n="how.p4.d"></p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="start" id="start" aria-labelledby="start-title">
+      <div class="wrap">
+        <div class="head">
+          <h2 id="start-title" class="section-title" data-i18n="start.title">Meet your household</h2>
+          <p class="section-lede" data-i18n="start.lede"></p>
+        </div>
+        <div class="start-grid">
+          <form class="card describe" id="parse-form" novalidate>
+            <h3 data-i18n="desc.title">Describe your family</h3>
+            <p class="muted" data-i18n="desc.lede"></p>
+            <label class="field">
+              <span data-i18n="desc.label_text">Who lives at home, and what does the day look like?</span>
+              <textarea id="parse-text" rows="6" maxlength="2000" required data-i18n-attr="placeholder:desc.ph"></textarea>
+            </label>
+            <div class="row2">
+              <label class="field">
+                <span data-i18n="desc.label_addr">Neighbourhood or address</span>
+                <input id="parse-address" type="text" maxlength="200" autocomplete="street-address" data-i18n-attr="placeholder:desc.addr_ph">
+              </label>
+              <label class="field">
+                <span data-i18n="desc.label_budget">Budget for improvements</span>
+                <select id="parse-budget">
+                  <option value="low" data-i18n="budget.low">Low: free and DIY only</option>
+                  <option value="medium" data-i18n="budget.medium" selected>Medium</option>
+                  <option value="high" data-i18n="budget.high">High</option>
+                </select>
+              </label>
+            </div>
+            <div class="form-foot">
+              <button type="submit" class="btn primary" id="parse-btn"><span data-i18n="desc.cta">Build my profile</span></button>
+              <p class="note" data-i18n="desc.note"></p>
+            </div>
+            <p class="alert" id="parse-error" role="alert" hidden></p>
+          </form>
+
+          <div class="card demo-card">
+            <span class="ico big"><svg class="icon lg" aria-hidden="true" focusable="false"><use href="icons.svg#users"/></svg></span>
+            <h3 data-i18n="demo.title">Start with the demo</h3>
+            <p class="muted" data-i18n="demo.lede"></p>
+            <button type="button" class="btn secondary" id="start-demo"><span data-i18n="demo.cta">Load the demo household</span></button>
+          </div>
+        </div>
+
+        <form class="profile" id="profile" hidden novalidate aria-labelledby="prof-title">
+          <div class="head">
+            <h2 id="prof-title" class="section-title" tabindex="-1" data-i18n="prof.title">Confirm the profile</h2>
+            <p class="section-lede" data-i18n="prof.lede"></p>
+          </div>
+          <div id="profile-body"></div>
+          <div class="form-foot sticky-foot">
+            <button type="submit" class="btn primary lg-btn" id="plan-btn"><span data-i18n="prof.cta">Plan today</span>
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="icons.svg#arrow-right"/></svg></button>
+            <p class="alert" id="plan-error" role="alert" hidden></p>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <div id="results" hidden tabindex="-1" aria-labelledby="res-title">
+      <section class="results-head" aria-labelledby="res-title">
+        <div class="wrap">
+          <h2 id="res-title" class="section-title" data-i18n="res.title">Today’s plan</h2>
+          <div class="badges" id="res-badges"></div>
+          <p class="summary" id="res-summary"></p>
+        </div>
+      </section>
+      <section class="block" id="air" aria-labelledby="air-title"><div class="wrap" id="air-body"></div></section>
+      <section class="block alt" id="timeline" aria-labelledby="tl-title"><div class="wrap" id="timeline-body"></div></section>
+      <section class="block" id="ledger" aria-labelledby="led-title"><div class="wrap" id="ledger-body"></div></section>
+      <section class="block alt" id="ladder" aria-labelledby="ladder-title"><div class="wrap" id="ladder-body"></div></section>
+      <section class="block" id="home" aria-labelledby="home-title"><div class="wrap" id="home-body"></div></section>
+      <section class="block alt" id="ask" aria-labelledby="ask-title"><div class="wrap" id="ask-body"></div></section>
+    </div>
+  </main>
+
+  <footer class="site-foot">
+    <div class="wrap">
+      <p class="disclaimer" data-i18n="foot.disclaimer"></p>
+      <p class="small" data-i18n="foot.assume"></p>
+      <p class="small"><span data-i18n="foot.google"></span>
+        <a href="https://github.com/AdityaTummuri/Saans" rel="noopener" data-i18n="foot.repo">Open source on GitHub</a></p>
+    </div>
+  </footer>
+
+  <div id="live" class="sr-only" role="status" aria-live="polite"></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
