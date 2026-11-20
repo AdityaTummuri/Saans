@@ -1,0 +1,53 @@
+"""Application settings. Everything tunable lives here; nothing is hard-coded elsewhere."""
+
+from __future__ import annotations
+
+from functools import lru_cache
+from pathlib import Path
+
+from pydantic import SecretStr
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    # Credentials (never logged)
+    maps_api_key: SecretStr | None = None
+    gemini_api_key: SecretStr | None = None
+
+    # Gemini
+    use_vertex: bool = False
+    google_cloud_project: str | None = None
+    google_cloud_location: str = "global"
+    gemini_model: str = "gemini-3.7-flash"
+    gemini_lite_model: str = "gemini-3.5-flash-lite"
+    gemini_timeout_s: float = 20.0
+    gemini_max_output_tokens: int = 1024
+    gemini_max_tool_rounds: int = 4
+
+    # Demo mode serves recorded fixtures and needs no keys.
+    demo_mode: bool = False
+    fixtures_dir: Path = REPO_ROOT / "fixtures" / "demo"
+
+    # Upstream HTTP
+    http_timeout_s: float = 8.0
+    http_retries: int = 1
+    forecast_hours: int = 48
+
+    # Cache
+    cache_ttl_s: float = 3600.0
+    cache_max_entries: int = 512
+
+    # Limits
+    max_request_bytes: int = 64 * 1024
+    max_text_chars: int = 2000
+    rate_limit_per_minute: int = 10
+    rate_limit_burst: int = 5
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()

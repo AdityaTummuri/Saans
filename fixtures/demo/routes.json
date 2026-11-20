@@ -1,0 +1,50 @@
+{
+ "DRIVE": {
+  "routes": [
+   {
+    "duration": "2400s",
+    "distanceMeters": 11000
+   }
+  ]
+ },
+ "WALK": {
+  "routes": [
+   {
+    "duration": "8100s",
+    "distanceMeters": 8900
+   }
+  ]
+ },
+ "BICYCLE": {
+  "routes": [
+   {
+    "duration": "3300s",
+    "distanceMeters": 9600
+   }
+  ]
+ },
+ "TWO_WHEELER": {
+  "routes": [
+   {
+    "duration": "1900s",
+    "distanceMeters": 10400
+   }
+  ]
+ },
+ "TRANSIT_BUS": {
+  "routes": [
+   {
+    "duration": "3300s",
+    "distanceMeters": 11200
+   }
+  ]
+ },
+ "TRANSIT_METRO": {
+  "routes": [
+   {
+    "duration": "2700s",
+    "distanceMeters": 12100
+   }
+  ]
+ }
+}

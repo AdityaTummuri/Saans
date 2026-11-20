@@ -1,0 +1,14 @@
+{
+ "status": "OK",
+ "results": [
+  {
+   "formatted_address": "New Delhi, Delhi, India",
+   "geometry": {
+    "location": {
+     "lat": 28.6139,
+     "lng": 77.209
+    }
+   }
+  }
+ ]
+}
