@@ -46,6 +46,8 @@ class Settings(BaseSettings):
     max_text_chars: int = 2000
     rate_limit_per_minute: int = 10
     rate_limit_burst: int = 5
+    # Behind Cloud Run the last X-Forwarded-For hop is the real client address.
+    trust_proxy_headers: bool = False
 
 
 @lru_cache
