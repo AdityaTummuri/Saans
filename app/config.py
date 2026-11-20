@@ -6,7 +6,7 @@ import os
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -18,6 +18,14 @@ class Settings(BaseSettings):
     # Credentials (never logged)
     maps_api_key: SecretStr | None = None
     gemini_api_key: SecretStr | None = None
+
+    @field_validator("maps_api_key", "gemini_api_key", "google_cloud_project", mode="before")
+    @classmethod
+    def _blank_means_unset(cls, value: object) -> object:
+        """`KEY=` in a .env file means "not set", not an empty secret."""
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
     # Gemini
     use_vertex: bool = False
