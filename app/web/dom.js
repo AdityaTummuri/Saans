@@ -1,7 +1,10 @@
 // Tiny DOM helpers. All text goes through textContent or text nodes, never HTML strings.
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
-const SVG_TAGS = new Set(['svg', 'g', 'path', 'circle', 'rect', 'line', 'use', 'title']);
+const SVG_TAGS = new Set([
+  'svg', 'g', 'path', 'circle', 'rect', 'line', 'use', 'title', 'text', 'defs', 'pattern',
+  'linearGradient', 'stop', 'clipPath', 'polygon', 'ellipse',
+]);
 
 /** Create an element. `vars` sets CSS custom properties (allowed under the page's CSP). */
 export function h(tag, props = {}, ...kids) {

@@ -40,5 +40,11 @@
     <symbol id="smoke" viewBox="0 0 24 24"><path d="M3 16h13v3H3zM19 16v3M22 16v3M16 5c0 2 2 2 2 4M19 3c0 2 2 3 2 5"/></symbol>
     <symbol id="coins" viewBox="0 0 24 24"><circle cx="9" cy="9" r="5.5"/><path d="M15 6.5a5.5 5.5 0 1 1-4 8.5M9 7v4M7.5 9h3"/></symbol>
     <symbol id="users" viewBox="0 0 24 24"><circle cx="9" cy="7.5" r="3.5"/><path d="M2 20c0-3.5 3-6 7-6s7 2.5 7 6M16 4.5a3.5 3.5 0 0 1 0 6.500M18 14.500c2.300.700 4 2.600 4 5.500"/></symbol>
+    <symbol id="cigarette" viewBox="0 0 24 24"><path d="M2 14h14v4H2zM6 14v4M19 14v4M22 14v4M17 6c0 2 2 2 2 5"/></symbol>
+    <symbol id="play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z"/></symbol>
+    <symbol id="pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+    <symbol id="chevron-left" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
+    <symbol id="chevron-right" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+    <symbol id="film" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M10 9.5v5l4.5-2.5z"/></symbol>
   </defs>
 </svg>

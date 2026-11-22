@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from app.config import Settings
 from app.main import WEB_DIR, create_app
 
-JS_FILES = ["app.js", "charts.js", "dom.js", "i18n.js"]
+JS_FILES = ["app.js", "charts.js", "dom.js", "fx.js", "i18n.js", "tour.js", "viz.js"]
 
 
 def read(name: str) -> str:
@@ -103,3 +103,67 @@ def test_icon_sprite_covers_every_icon_used() -> None:
 def test_web_dir_is_small() -> None:
     total = sum(f.stat().st_size for f in Path(WEB_DIR).rglob("*") if f.is_file())
     assert total < 400_000
+
+
+def _defined(lang: str) -> set[str]:
+    en, hi = read("i18n.js").split("\n  hi: {", 1)
+    return _keys(en if lang == "en" else hi.split("\n};", 1)[0])
+
+
+def test_every_literal_i18n_key_used_in_js_exists_in_both_languages() -> None:
+    used: set[str] = set()
+    for name in JS_FILES:
+        if name == "i18n.js":
+            continue
+        used |= set(re.findall(r"\bt\('([\w.]+)'", read(name)))
+        used |= set(
+            re.findall(
+                r"'((?:ladder|home|led|tl|commute|fam|air|res|story|hero|tour)\.[\w.]+)'",
+                read(name),
+            )
+        )
+    used = {k for k in used if not re.fullmatch(r"tour\.s\d+", k)}  # step prefixes: see below
+    for lang in ("en", "hi"):
+        assert used <= _defined(lang), (lang, sorted(used - _defined(lang)))
+
+
+def test_tour_steps_have_captions_in_both_languages() -> None:
+    keys = re.findall(r"key: '(tour\.s\d+)'", read("app.js"))
+    assert len(keys) >= 8
+    for lang in ("en", "hi"):
+        defined = _defined(lang)
+        for key in keys:
+            assert f"{key}.t" in defined and f"{key}.d" in defined, (lang, key)
+        for control in ("prev", "next", "pause", "play", "exit", "finish", "keys", "step", "label"):
+            assert f"tour.{control}" in defined, (lang, control)
+
+
+def test_tour_is_url_driven_keyboard_operable_and_stops_cleanly() -> None:
+    app, tour = read("app.js"), read("tour.js")
+    assert "params.get('tour')" in app
+    for needle in (
+        "'Escape'",
+        "' '",
+        "ArrowRight",
+        "ArrowLeft",
+        "removeEventListener",
+        "aria-live",
+    ):
+        assert needle in tour, needle
+
+
+def test_effects_rest_when_hidden_or_motion_is_reduced() -> None:
+    fx = read("fx.js")
+    assert (
+        "prefers-reduced-motion" in fx and "visibilitychange" in fx and "IntersectionObserver" in fx
+    )
+    css = read("styles.css")
+    assert "@media (prefers-reduced-motion: reduce)" in css
+    # entrance states only apply when JS has switched effects on
+    assert "html[data-fx='on']" in css
+
+
+def test_severity_is_never_colour_alone_in_charts() -> None:
+    charts, viz, css = read("charts.js"), read("viz.js"), read("styles.css")
+    assert "zone-label" in charts and "STRIPED" in charts and "air.col_band" in charts
+    assert "signal(" in viz and "repeating-linear-gradient" in css

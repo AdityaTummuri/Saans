@@ -123,7 +123,7 @@ uvicorn app.main:app
 pytest
 ```
 
-Open <http://127.0.0.1:8000>. Add `?demo=1` to the URL to load the demo household straight away.
+Open <http://127.0.0.1:8000>. Add `?demo=1` to the URL to load the demo household straight away, or `?demo=1&tour=1` (the **Watch the demo** button) for a guided, captioned walk through every section: Space pauses, the arrow keys step, Escape ends.
 
 In demo mode the four Google endpoints are answered from recorded responses in `fixtures/demo`, through the same adapters and parsing code as production. Without a Gemini key, the explanations and Ask answers come from deterministic engine templates. To use live data set `MAPS_API_KEY` and either `GEMINI_API_KEY` (AI Studio) or `USE_VERTEX=true` with `GOOGLE_CLOUD_PROJECT`.
 

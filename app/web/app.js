@@ -1,8 +1,11 @@
 // Saans front end: vanilla JS. All text is rendered with textContent / text nodes.
 
-import { airStrip, categoryChip, dayTrack, legend, signal } from './charts.js';
+import { categoryChip, categoryOf, chartHost, forecastChart, legend, scaleBar } from './charts.js';
 import { $, $$, clear, h, icon } from './dom.js';
+import { initFx, setCount, smogField, watch } from './fx.js';
 import { getLanguage, setLanguage, t } from './i18n.js';
+import { createTour } from './tour.js';
+import { beforeAfter, cigarettes, commuteBars, counter, doseGauge, roomChart, ventStrip } from './viz.js';
 
 const KEYS = { lang: 'saans.lang', household: 'saans.household', large: 'saans.large' };
 const AGE_BANDS = ['infant', 'child', 'teen', 'adult', 'older'];
@@ -30,6 +33,8 @@ const state = {
   busy: false,
 };
 const askLog = []; // [{role, text, badge}]
+let heroField = null; // canvas smog in the hero
+let resField = null; // canvas smog behind today's reading
 
 // --------------------------------------------------------------------------- storage
 
@@ -61,6 +66,9 @@ const fmtNum = (n) => new Intl.NumberFormat(locale(), { maximumFractionDigits: 0
 const fmtDec = (n, d = 1) =>
   new Intl.NumberFormat(locale(), { minimumFractionDigits: d, maximumFractionDigits: d }).format(n);
 
+const dayPart = (h24) =>
+  h24 >= 4 && h24 < 12 ? 'सुबह' : h24 < 16 && h24 >= 12 ? 'दोपहर' : h24 >= 16 && h24 < 20 ? 'शाम' : 'रात';
+
 /** 12-hour time with a Hindi day-part prefix, matching the server's wording. */
 function fmtHour(hour) {
   const minutes = Math.round(hour * 60) % (24 * 60);
@@ -68,9 +76,14 @@ function fmtHour(hour) {
   const m = minutes % 60;
   const h12 = h24 % 12 || 12;
   const base = `${h12}:${String(m).padStart(2, '0')} ${h24 < 12 ? 'am' : 'pm'}`;
-  if (getLanguage() !== 'hi') return base;
-  const part = h24 >= 4 && h24 < 12 ? 'सुबह' : h24 < 16 && h24 >= 12 ? 'दोपहर' : h24 >= 16 && h24 < 20 ? 'शाम' : 'रात';
-  return `${part} ${base}`;
+  return getLanguage() === 'hi' ? `${dayPart(h24)} ${base}` : base;
+}
+
+/** Short hour for chart axes: "6 am" or "सुबह 6". */
+function fmtShort(hour) {
+  const h24 = Math.round(hour) % 24;
+  const h12 = h24 % 12 || 12;
+  return getLanguage() === 'hi' ? `${dayPart(h24)} ${fmtNum(h12)}` : `${fmtNum(h12)} ${h24 < 12 ? 'am' : 'pm'}`;
 }
 
 const hoursToTime = (hours) => {
@@ -194,6 +207,7 @@ function applyI18n() {
   }
   const largeOn = document.documentElement.dataset.large === 'on';
   $('#large-btn').setAttribute('aria-pressed', String(largeOn));
+  paintOrb();
 }
 
 async function changeLanguage() {
@@ -208,7 +222,9 @@ async function changeLanguage() {
   }
   if (state.plan) {
     renderResults();
+    tour.refresh();
     await requestPlan({ quiet: true });
+    tour.refresh();
   }
 }
 
@@ -436,18 +452,67 @@ function renderProfile() {
 
 const memberById = () => new Map(state.household.members.map((m) => [m.id, m]));
 
-function sectionHead(id, titleKey, ledeKey) {
-  return h('div', { class: 'head' }, h('h2', { id, class: 'section-title' }, t(titleKey)), ledeKey ? h('p', { class: 'section-lede' }, t(ledeKey)) : null);
+/** A section heading with its story-step eyebrow, so the page reads as one story. */
+function sectionHead(id, titleKey, ledeKey, storyKey, step) {
+  return h('div', { class: 'head' },
+    storyKey
+      ? h('p', { class: 'eyebrow' }, h('span', { class: 'step-n', 'aria-hidden': 'true' }, String(step).padStart(2, '0')), t(storyKey))
+      : null,
+    h('h2', { id, class: 'section-title' }, t(titleKey)),
+    ledeKey ? h('p', { class: 'section-lede' }, t(ledeKey)) : null);
 }
 
-function renderHead() {
+const dayMean = (hours) => hours.reduce((sum, x) => sum + x.pm25, 0) / hours.length;
+
+/** The big live reading in the hero card: the example until a plan loads, then today's average. */
+function paintOrb() {
+  const card = $('.hero-card');
+  const live = state.plan ? dayMean(state.plan.plan.hours) : 240;
+  const category = categoryOf(live);
+  card.dataset.cat = category;
+  const num = $('#orb-num');
+  if (state.plan) setCount(num, Math.round(live));
+  else {
+    num.dataset.count = '240';
+    num.textContent = fmtNum(240);
+  }
+  $('#orb-label').textContent = state.plan
+    ? t('hero.orb_live', { place: state.plan.location || '—' })
+    : t('hero.orb_example');
+  clear($('#orb-band')).append(categoryChip(category));
+  heroField?.setPm(live);
+}
+
+function renderProblem() {
   const r = state.plan;
+  const { hours } = r.plan;
+  const avg = dayMean(hours);
+  const category = categoryOf(avg);
+  const peak = hours.reduce((a, b) => (b.pm25 > a.pm25 ? b : a));
+  const best = hours.filter((x) => x.hour >= 6 && x.hour <= 21).reduce((a, b) => (b.pm25 < a.pm25 ? b : a));
   clear($('#res-badges')).append(
     h('span', { class: 'badge' }, icon('pin'), t('res.forecast_for', { place: r.location || '—' })),
     h('span', { class: 'badge' }, icon('info'), t(r.demo ? 'res.demo_badge' : 'res.live_badge')),
     h('span', { class: 'badge' }, icon('sparkle'), t(r.narrated_by_model ? 'res.model_badge' : 'res.template_badge')),
   );
   $('#res-summary').textContent = r.summary;
+  const number = clear($('#res-number'));
+  number.dataset.cat = category;
+  number.setAttribute('data-reveal', '');
+  number.append(
+    h('p', { class: 'bn-label' }, t('res.avg')),
+    h('p', { class: 'bn-value' }, counter(Math.round(avg), fmtNum), h('small', {}, t('air.unit'))),
+    h('div', { class: 'bn-band' }, categoryChip(category)),
+    h('ul', { class: 'bn-facts' },
+      h('li', { class: 'fact-peak' }, icon('alert'), `${t('air.peak', { time: fmtHour(peak.hour) })} · ${fmtNum(peak.pm25)}`),
+      h('li', { class: 'fact-best' }, icon('check'), `${t('air.best', { time: fmtHour(best.hour) })} · ${fmtNum(best.pm25)}`)),
+  );
+  const scale = clear($('#res-scale'));
+  scale.setAttribute('data-reveal', '');
+  scale.append(scaleBar(avg));
+  resField ??= smogField($('#res-canvas'), { pm: avg, anchor: [0.82, 0.42] });
+  resField.setPm(avg);
+  paintOrb();
 }
 
 function renderAir() {
@@ -455,96 +520,107 @@ function renderAir() {
   const body = clear($('#air-body'));
   const advice = Object.entries(recommendations ?? {});
   body.append(
-    sectionHead('air-title', 'air.title', 'air.lede'),
+    sectionHead('air-title', 'air.title', 'air.lede', 'story.problem', 1),
     legend(),
-    h('div', { class: 'strip-wrap' },
-      h('div', { class: 'strip-scale', 'aria-hidden': 'true' }, h('span', {}, t('air.unit')), h('span', {}, t('air.stagnation'))),
-      airStrip(plan.hours, fmtHour, fmtNum),
-      h('p', { class: 'axis' }, t('air.axis')),
-    ),
+    h('div', { class: 'chart-card' },
+      h('p', { class: 'chart-unit', 'aria-hidden': 'true' }, t('air.unit')),
+      chartHost(forecastChart({ hours: plan.hours, mode: 'air', fmtHour, fmtShort, fmtNum }))),
     h('p', { class: 'muted small stag-note' }, t('air.stag_legend')),
     advice.length
       ? h('details', { class: 'advice' },
           h('summary', {}, icon('info'), t('air.advice'), icon('chevron-down', 'chev')),
-          h('dl', {}, advice.map(([k, v]) => [h('dt', {}, t(`adv.${k}`)), h('dd', {}, v)])),
-        )
+          h('dl', {}, advice.map(([k, v]) => [h('dt', {}, t(`adv.${k}`)), h('dd', {}, v)])))
       : null,
   );
+}
+
+function renderFamily() {
+  const hh = state.household;
+  const { plan } = state.plan;
+  const summaries = new Map(plan.members.map((m) => [m.member_id, m]));
+  const body = clear($('#family-body'));
+  const cards = hh.members.map((m, i) => {
+    const summary = summaries.get(m.id);
+    const routine = [
+      ...hh.activities.filter((a) => a.member_ids.includes(m.id)).map((a) => ({ name: a.name, glyph: 'clock', hour: a.start_hour })),
+      ...hh.trips.filter((tr) => tr.member_ids.includes(m.id)).map((tr) => ({ name: tr.name, glyph: tr.mode, hour: tr.depart_hour })),
+    ].sort((a, b) => a.hour - b.hour);
+    return h('article', { class: `person${summary && summary.weight > 1 ? ' care' : ''}`, vars: { '--i': i } },
+      h('header', {},
+        h('span', { class: 'avatar xl', 'aria-hidden': 'true' }, m.name.slice(0, 1).toUpperCase()),
+        h('div', {}, h('h3', {}, m.name), h('p', { class: 'muted small' }, t(`age.${m.age_band}`)))),
+      h('div', { class: 'conds' },
+        summary && summary.weight > 1 ? h('span', { class: 'chip care' }, icon('shield'), t('led.care')) : null,
+        m.conditions.map((c) => h('span', { class: 'chip' }, t(`cond.${c}`)))),
+      h('p', { class: 'day-title' }, t('fam.day')),
+      routine.length
+        ? h('ul', { class: 'day' }, routine.map((x) => h('li', {}, icon(x.glyph), h('span', {}, x.name), h('time', {}, fmtHour(x.hour)))))
+        : h('p', { class: 'muted small' }, t('fam.day_none')));
+  });
+  body.append(sectionHead('fam-title', 'fam.title', 'fam.lede', 'story.family', 2), h('div', { class: 'people', 'data-reveal': '' }, cards));
 }
 
 function renderTimeline() {
   const { plan } = state.plan;
   const byId = memberById();
   const body = clear($('#timeline-body'));
-  body.append(sectionHead('tl-title', 'tl.title', 'tl.lede'));
-
+  body.append(
+    sectionHead('tl-title', 'tl.title', 'tl.lede', 'story.change', 3),
+    h('div', { class: 'chart-card moves' },
+      h('p', { class: 'chart-unit', 'aria-hidden': 'true' }, t('air.unit')),
+      chartHost(forecastChart({ hours: plan.hours, timeline: plan.timeline, mode: 'moves', fmtHour, fmtShort, fmtNum })),
+      h('ul', { class: 'move-key' }, plan.timeline.filter((x) => x.shifted).map((x) =>
+        h('li', {}, icon('shuffle'), h('strong', {}, x.name), h('span', {}, t('tl.moved', { from: fmtHour(x.original_start), to: fmtHour(x.planned_start) })))))),
+  );
   const items = plan.timeline.map((it) => {
     const names = listNames(it.member_ids.map((id) => byId.get(id)?.name ?? id));
     const cut = Math.round(it.dose_cut_pct);
-    return h('li', { class: `tl-item${it.shifted ? ' shifted' : ''}` },
+    return h('li', { class: `tl-item${it.shifted ? ' shifted' : ''}`, 'data-reveal': '' },
       h('div', { class: 'when' },
         h('span', { class: 'big' }, icon('clock'), fmtHour(it.planned_start)),
-        h('span', { class: 'was' }, it.shifted ? t('tl.was', { time: fmtHour(it.original_start) }) : t('tl.kept', { time: fmtHour(it.original_start) })),
-      ),
+        h('span', { class: 'was' }, it.shifted ? t('tl.was', { time: fmtHour(it.original_start) }) : t('tl.kept', { time: fmtHour(it.original_start) }))),
       h('div', { class: 'what' },
         h('h3', {}, it.name),
         h('p', { class: 'muted small' }, t('prof.who', { names })),
         h('p', { class: 'reason' }, icon(it.shifted ? 'check' : 'info'), t(`tl.reason.${it.reason}`)),
-        dayTrack(plan.hours, it.original_start, it.planned_start, it.duration_h, it.shifted),
-        h('p', { class: 'nums' },
-          h('span', {}, t('tl.pm', { pm: 'PM2.5', a: fmtNum(it.pm25_before), b: fmtNum(it.pm25_after) })),
-          h('strong', { class: cut > 0 ? 'good' : '' }, cut > 0 ? t('tl.dose', { pct: fmtNum(cut) }) : t('tl.dose_same')),
-        ),
-      ),
-    );
+        beforeAfter(it, fmtHour, fmtNum),
+        cut > 0
+          ? h('p', { class: 'cut-chip' }, h('span', { class: 'sr-only' }, t('tl.dose', { pct: fmtNum(cut) })), h('span', { 'aria-hidden': 'true' }, counter(cut, fmtNum), '% ', t('led.cut')))
+          : h('p', { class: 'cut-chip none' }, t('tl.dose_same'))));
   });
   if (items.length) body.append(h('ol', { class: 'timeline' }, items));
+}
 
-  for (const comp of plan.commute) {
-    const maxDose = Math.max(...comp.options.map((o) => o.dose_ug), 1);
-    const rows = comp.options.map((o) =>
-      h('tr', { class: o.current ? 'current' : '' },
-        h('th', { scope: 'row' }, h('span', { class: 'mode' }, icon(o.mode), t(`mode.${o.mode}`)), o.current ? h('span', { class: 'chip solid' }, t('commute.current')) : null),
-        h('td', {}, t('commute.min', { n: fmtNum(o.duration_min) })),
-        h('td', { class: 'dosecell' }, h('div', {}, h('span', { class: 'meter', vars: { '--w': o.dose_ug / maxDose }, 'aria-hidden': 'true' }), h('span', {}, t('commute.ug', { n: fmtNum(o.dose_ug) })))),
-        h('td', {}, t('commute.kg', { n: fmtDec(o.co2_kg, 1) })),
-      ),
-    );
-    body.append(
-      h('div', { class: 'commute' },
-        h('h3', {}, `${t('commute.title')}: ${comp.name}`),
-        h('div', { class: 'table-scroll' },
-          h('table', {},
-            h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, t('commute.mode')), h('th', { scope: 'col' }, t('commute.time')), h('th', { scope: 'col' }, t('commute.dose')), h('th', { scope: 'col' }, t('commute.co2')))),
-            h('tbody', {}, rows),
-          ),
-        ),
-      ),
-    );
-  }
+function renderCommute() {
+  const { plan } = state.plan;
+  $('#commute').hidden = plan.commute.length === 0;
+  const body = clear($('#commute-body'));
+  if (!plan.commute.length) return;
+  body.append(
+    sectionHead('commute-title', 'commute.title', 'commute.lede', 'story.commute', 3),
+    h('div', { class: 'commutes' }, plan.commute.map((comp) => commuteBars(comp, fmtNum, fmtDec))));
 }
 
 function renderLedger() {
   const { plan } = state.plan;
   const body = clear($('#ledger-body'));
   const maxDose = Math.max(...plan.members.map((m) => m.dose_baseline_ug), 1);
-  body.append(sectionHead('led-title', 'led.title', 'led.lede'));
-  const cards = plan.members.map((m) =>
-    h('article', { class: 'led-member' },
+  body.append(sectionHead('led-title', 'led.title', 'led.lede', 'story.less', 4));
+  const cards = plan.members.map((m, i) =>
+    h('article', { class: 'led-member', 'data-reveal': '', vars: { '--i': i } },
       h('header', {},
-        h('span', { class: 'avatar' }, m.name.slice(0, 1).toUpperCase()),
+        h('span', { class: 'avatar', 'aria-hidden': 'true' }, m.name.slice(0, 1).toUpperCase()),
         h('h3', {}, m.name),
-        m.weight > 1 ? h('span', { class: 'chip care' }, icon('shield'), t('led.care')) : null,
-      ),
-      h('div', { class: 'bars' },
-        h('div', { class: 'bar-row' }, h('span', { class: 'lab' }, t('led.now')), h('span', { class: 'meter now', vars: { '--w': m.dose_baseline_ug / maxDose }, 'aria-hidden': 'true' })),
-        h('div', { class: 'bar-row' }, h('span', { class: 'lab' }, t('led.plan')), h('span', { class: 'meter plan', vars: { '--w': m.dose_plan_ug / maxDose }, 'aria-hidden': 'true' })),
-      ),
-      h('p', { class: 'dose' }, t('led.dose', { a: fmtNum(m.dose_baseline_ug), b: fmtNum(m.dose_plan_ug), pct: fmtNum(m.pct_change) })),
-      m.cigarettes_avoided >= 0.05 ? h('p', { class: 'muted' }, icon('smoke'), t('led.cig', { n: fmtDec(m.cigarettes_avoided, 1) })) : null,
-      h('p', { class: 'avoid' }, icon('alert'), m.avoid_exertion_hours.length ? t('led.avoid', { hours: hourRanges(m.avoid_exertion_hours) }) : t('led.avoid_none')),
-    ),
-  );
+        m.weight > 1 ? h('span', { class: 'chip care' }, icon('shield'), t('led.care')) : null),
+      doseGauge(m, maxDose, fmtNum),
+      h('p', { class: 'sr-only' }, t('led.dose', { a: fmtNum(m.dose_baseline_ug), b: fmtNum(m.dose_plan_ug), pct: fmtNum(m.pct_change) })),
+      h('dl', { class: 'dose-legend', 'aria-hidden': 'true' },
+        h('div', { class: 'now' }, h('dt', {}, h('i', {}), t('led.now')), h('dd', {}, counter(Math.round(m.dose_baseline_ug), fmtNum), ' µg')),
+        h('div', { class: 'plan' }, h('dt', {}, h('i', {}), t('led.plan')), h('dd', {}, counter(Math.round(m.dose_plan_ug), fmtNum), ' µg'))),
+      m.cigarettes_avoided >= 0.05
+        ? h('div', { class: 'cig-row' }, cigarettes(m.cigarettes_avoided), h('p', { class: 'muted' }, t('led.cig', { n: fmtDec(m.cigarettes_avoided, 1) })))
+        : null,
+      h('p', { class: 'avoid' }, icon('alert'), m.avoid_exertion_hours.length ? t('led.avoid', { hours: hourRanges(m.avoid_exertion_hours) }) : t('led.avoid_none'))));
   body.append(h('div', { class: 'led-grid' }, cards), h('p', { class: 'muted small' }, t('led.cig_note')));
 }
 
@@ -562,15 +638,14 @@ function actionMetrics(entry, names) {
 function tierBadge(tier) {
   return h('span', { class: `tier t${tier}`, title: t('tier.label', { tier: t(`tier.${tier}`) }) },
     h('span', { class: 'pips', 'aria-hidden': 'true' }, [1, 2, 3, 4].map((i) => h('i', { class: i <= tier ? 'on' : '' }))),
-    t('tier.label', { tier: t(`tier.${tier}`) }),
-  );
+    t('tier.label', { tier: t(`tier.${tier}`) }));
 }
 
-function renderLadder() {
+function renderLadder(refocus = null) {
   const { plan, action_text: texts } = state.plan;
   const byId = memberById();
   const body = clear($('#ladder-body'));
-  body.append(sectionHead('ladder-title', 'ladder.title', 'ladder.lede'));
+  body.append(sectionHead('ladder-title', 'ladder.title', 'ladder.lede', 'story.ladder', 4));
 
   const filters = [['all', 'ladder.f_all'], ['free', 'ladder.f_free'], ['diy', 'ladder.f_diy']];
   body.append(
@@ -579,82 +654,69 @@ function renderLadder() {
         h('button', {
           type: 'button',
           class: 'pill',
+          'data-filter': key,
           'aria-pressed': String(state.filter === key),
-          onclick: () => { state.filter = key; state.expanded = false; renderLadder(); },
-        }, t(label)),
-      ),
-    ),
+          onclick: () => { state.filter = key; state.expanded = false; renderLadder(key); },
+        }, t(label)))),
   );
 
   const matches = (a) => state.filter === 'all' || (state.filter === 'free' ? a.effort_tier === 1 : a.effort_tier <= 3);
   const list = plan.actions.filter(matches);
   const shown = state.expanded ? list : list.slice(0, LADDER_PREVIEW);
   const rankOf = new Map(plan.actions.map((a, i) => [a.id, i + 1]));
+  const top = Math.max(...plan.actions.map((a) => a.score), 1e-9);
 
   body.append(
     h('ol', { class: 'ladder' },
-      shown.map((a) => {
+      shown.map((a, i) => {
         const names = a.members.map((m) => byId.get(m.member_id)?.name ?? m.member_id);
         const glyph = a.kind === 'mode_switch' && a.details.mode_new ? String(a.details.mode_new) : KIND_ICON[a.kind];
-        return h('li', { class: `ladder-item tier-${a.effort_tier}${a.tradeoff ? ' tradeoff' : ''}` },
+        return h('li', { class: `ladder-item tier-${a.effort_tier}${a.tradeoff ? ' tradeoff' : ''}`, 'data-reveal': '', vars: { '--i': i } },
           h('div', { class: 'rank' }, h('span', { class: 'n' }, String(rankOf.get(a.id))), h('span', { class: 'sr-only' }, t('ladder.rank', { n: rankOf.get(a.id) }))),
           h('div', { class: 'body' },
             h('header', {}, h('span', { class: 'kind' }, icon(glyph), t(`kind.${a.kind}`)), tierBadge(a.effort_tier)),
             h('p', { class: 'text' }, texts[a.id] ?? ''),
+            h('div', { class: 'impact', 'aria-hidden': 'true' },
+              h('span', { class: 'imp-lab' }, t('ladder.impact')),
+              h('span', { class: 'track' }, h('span', { class: 'fill', vars: { '--w': Math.max(a.score / top, 0.03) } })),
+              h('span', { class: 'amt' }, counter(Math.round(a.score), fmtNum))),
             actionMetrics(a, names),
-            a.tradeoff ? h('p', { class: 'trade' }, icon('info'), t('m.tradeoff')) : null,
-          ),
-        );
-      }),
-    ),
+            a.tradeoff ? h('p', { class: 'trade' }, icon('info'), t('m.tradeoff')) : null));
+      })),
   );
   if (list.length > LADDER_PREVIEW) {
     body.append(
-      h('button', { type: 'button', class: 'btn ghost more', onclick: () => { state.expanded = !state.expanded; renderLadder(); } },
-        t(state.expanded ? 'ladder.less' : 'ladder.more', { n: fmtNum(list.length) })),
-    );
+      h('button', { type: 'button', class: 'btn ghost more', onclick: () => { state.expanded = !state.expanded; renderLadder('more'); } },
+        t(state.expanded ? 'ladder.less' : 'ladder.more', { n: fmtNum(list.length) })));
+  }
+  if (refocus) {
+    watch(body);
+    (refocus === 'more' ? $('.more', body) : $(`[data-filter="${refocus}"]`, body))?.focus({ preventScroll: true });
   }
 }
 
 function renderHome() {
   const { plan } = state.plan;
   const body = clear($('#home-body'));
-  const maxIn = Math.max(...plan.rooms.flatMap((r) => [r.indoor_now, r.indoor_no_purifier, r.indoor_with_purifier]), 1);
-  body.append(sectionHead('home-title', 'home.title', 'home.lede'));
-
-  const cats = (v) => {
-    const bands = [[30, 'good'], [60, 'satisfactory'], [90, 'moderate'], [120, 'poor'], [250, 'very_poor']];
-    return (bands.find(([ub]) => v <= ub) ?? [0, 'severe'])[1];
-  };
-  const row = (labelKey, value, cls) =>
-    h('div', { class: `room-row ${cls}` },
-      h('span', { class: 'lab' }, t(labelKey)),
-      h('span', { class: `meter cat-${cats(value)}`, vars: { '--w': value / maxIn }, 'aria-hidden': 'true' }),
-      h('span', { class: 'v' }, signal(cats(value)), `${fmtNum(value)} µg/m³`),
-    );
+  const max = Math.max(...plan.rooms.flatMap((r) => [r.outdoor_pm25, r.indoor_now, r.indoor_no_purifier, r.indoor_with_purifier]), 60) * 1.08;
+  body.append(sectionHead('home-title', 'home.title', 'home.lede', 'story.home', 5));
 
   body.append(
     h('div', { class: 'rooms' },
-      plan.rooms.map((r) =>
-        h('article', { class: 'room-card' },
+      plan.rooms.map((r, i) =>
+        h('article', { class: 'room-card', 'data-reveal': '', vars: { '--i': i } },
           h('header', {}, h('h3', {}, icon('home'), r.room), categoryChip(r.category_now)),
-          row('home.now', r.indoor_now, 'now'),
-          row('home.purifier', r.indoor_with_purifier, 'pur'),
-          row('home.sealed', r.indoor_purifier_sealed, 'seal'),
-          h('p', { class: 'muted small' }, t('home.outdoor', { n: fmtNum(r.outdoor_pm25) })),
-          h('p', { class: 'need' }, icon('purifier'), r.purifier_cadr > 0 ? t('home.has', { cadr: fmtNum(r.purifier_cadr) }) : t('home.need', { cadr: fmtNum(Math.ceil(r.cadr_needed / 50) * 50) })),
-        ),
-      ),
-    ),
+          roomChart(r, max, fmtNum),
+          h('p', { class: 'need' }, icon('purifier'), r.purifier_cadr > 0 ? t('home.has', { cadr: fmtNum(r.purifier_cadr) }) : t('home.need', { cadr: fmtNum(Math.ceil(r.cadr_needed / 50) * 50) }))))),
   );
 
   const v = plan.ventilation;
   body.append(
     h('div', { class: 'home-lower' },
-      h('article', { class: 'vent' },
+      h('article', { class: 'vent', 'data-reveal': '' },
         h('h3', {}, icon('window'), t('home.vent_title')),
         h('p', { class: 'vent-text' }, t('home.vent', { min: fmtNum(v.minutes), time: fmtHour(v.best_hour), best: fmtNum(v.pm25_best), mean: fmtNum(v.pm25_waking_mean) })),
-      ),
+        ventStrip(plan.hours, v.best_hour, fmtShort)),
       h('article', { class: 'sources' },
         h('h3', {}, icon('flame'), t('home.sources')),
         plan.sources.length
@@ -663,11 +725,8 @@ function renderHome() {
                 h('strong', {}, t(`src.${s.kind}`)),
                 h('span', {}, s.neighbourhood
                   ? t('src.out', { pm: fmtNum(s.pm25_g_per_day), co2: fmtDec(s.co2_kg_per_day, 1) })
-                  : t('src.indoor', { n: fmtNum(s.indoor_increase), room: s.room ?? '' })),
-              )))
-          : h('p', { class: 'muted' }, t('home.sources_none')),
-      ),
-    ),
+                  : t('src.indoor', { n: fmtNum(s.indoor_increase), room: s.room ?? '' })))))
+          : h('p', { class: 'muted' }, t('home.sources_none')))),
   );
 }
 
@@ -677,8 +736,7 @@ function messageNode(msg) {
   return h('div', { class: `msg ${msg.role}` },
     h('span', { class: 'who' }, t(msg.role === 'user' ? 'ask.you' : 'ask.saans')),
     h('p', {}, msg.text),
-    msg.badge ? h('span', { class: `chip ${msg.badge === 'verified' ? 'solid' : ''}` }, icon(msg.badge === 'verified' ? 'check' : 'info'), t(msg.badge === 'verified' ? 'ask.verified' : 'ask.template')) : null,
-  );
+    msg.badge ? h('span', { class: `chip ${msg.badge === 'verified' ? 'solid' : ''}` }, icon(msg.badge === 'verified' ? 'check' : 'info'), t(msg.badge === 'verified' ? 'ask.verified' : 'ask.template')) : null);
 }
 
 function renderAsk() {
@@ -696,7 +754,7 @@ function renderAsk() {
     log.append(messageNode(askLog.at(-1)));
     input.value = '';
     send.disabled = true;
-    const pending = h('div', { class: 'msg bot pending' }, h('p', {}, t('ask.thinking')));
+    const pending = h('div', { class: 'msg bot pending' }, h('p', {}, t('ask.thinking'), h('span', { class: 'dots', 'aria-hidden': 'true' }, h('i'), h('i'), h('i'))));
     log.append(pending);
     try {
       const data = await api('/api/ask', { body: { household: state.household, question: q } });
@@ -717,50 +775,122 @@ function renderAsk() {
   const chips = h('div', { class: 'chips' }, ['ask.s1', 'ask.s2', 'ask.s3', 'ask.s4'].map((k) =>
     h('button', { type: 'button', class: 'pill', onclick: () => submit(t(k)) }, icon('sparkle'), t(k))));
 
-  body.append(sectionHead('ask-title', 'ask.title', 'ask.lede'), h('div', { class: 'ask' }, form, chips, error, log));
+  body.append(sectionHead('ask-title', 'ask.title', 'ask.lede', 'story.ask', 6), h('div', { class: 'ask' }, form, chips, error, log));
 }
 
 function renderResults() {
   if (!state.plan) return;
-  $('#results').hidden = false;
+  const results = $('#results');
+  results.hidden = false;
+  results.setAttribute('aria-busy', 'false');
   $('#nav-plan').hidden = false;
-  renderHead();
+  renderProblem();
   renderAir();
+  renderFamily();
   renderTimeline();
+  renderCommute();
   renderLedger();
   renderLadder();
   renderHome();
   renderAsk();
+  watch(results);
 }
+
+// --------------------------------------------------------------------------- loading skeletons
+
+const bone = (cls) => h('span', { class: `bone ${cls}` });
+
+/** Placeholder blocks sized like the real sections, so nothing jumps when the plan arrives. */
+function renderSkeleton() {
+  const results = $('#results');
+  results.hidden = false;
+  results.setAttribute('aria-busy', 'true');
+  $('#nav-plan').hidden = false;
+  const head = () => h('div', { class: 'skel-head' }, bone('w30'), bone('w60 tall'), bone('w45'));
+  const grid = (n, cls) => h('div', { class: `skel-grid ${cls}` }, Array.from({ length: n }, () => bone('card')));
+  const fill = (id, ...kids) => clear($(id)).append(h('div', { class: 'skeleton', 'aria-hidden': 'true' }, ...kids));
+  $('#res-summary').textContent = '';
+  clear($('#res-badges'));
+  clear($('#res-scale'));
+  clear($('#res-number')).append(h('div', { class: 'skeleton', 'aria-hidden': 'true' }, bone('w45'), bone('number'), bone('w60')));
+  $('#res-summary').append(h('span', { class: 'skeleton', 'aria-hidden': 'true' }, bone('w100'), bone('w90'), bone('w60')));
+  fill('#air-body', head(), bone('chart'));
+  fill('#family-body', head(), grid(4, 'g4'));
+  fill('#timeline-body', head(), bone('chart'));
+  clear($('#commute-body'));
+  $('#commute').hidden = false;
+  fill('#commute-body', head(), grid(2, 'g2'));
+  fill('#ledger-body', head(), grid(4, 'g4 tall'));
+  fill('#ladder-body', head(), bone('row'), bone('row'), bone('row'));
+  fill('#home-body', head(), grid(4, 'g4 tall'));
+  clear($('#ask-body'));
+  announce(t('res.loading'));
+}
+
+// --------------------------------------------------------------------------- guided tour
+
+const TOUR_STEPS = [
+  { id: 'top', key: 'tour.s1', ms: 6500 },
+  { id: 'problem', key: 'tour.s2', ms: 7000 },
+  { id: 'air', key: 'tour.s3', ms: 7500 },
+  { id: 'family', key: 'tour.s4', ms: 7500 },
+  { id: 'timeline', key: 'tour.s5', ms: 8000 },
+  { id: 'commute', key: 'tour.s6', ms: 7000 },
+  { id: 'ledger', key: 'tour.s7', ms: 8000 },
+  { id: 'ladder', key: 'tour.s8', ms: 8500 },
+  { id: 'home', key: 'tour.s9', ms: 8500 },
+  { id: 'ask', key: 'tour.s10', ms: 6500 },
+];
+
+const tour = createTour({
+  steps: TOUR_STEPS.map((step) => ({
+    ...step,
+    el: () => {
+      const el = document.getElementById(step.id);
+      if (!el || el.hidden) return null;
+      return step.id === 'top' || !$('#results').hidden ? el : null;
+    },
+  })),
+});
 
 // --------------------------------------------------------------------------- actions
 
-async function requestPlan({ quiet = false } = {}) {
+const MIN_SKELETON_MS = 700;
+const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function requestPlan({ quiet = false, tour: tourAfter = false } = {}) {
   if (!state.household || state.busy) return;
   const btn = $('#plan-btn');
   const errorEl = $('#plan-error');
   hideError(errorEl);
   state.busy = true;
-  if (!quiet) setBusy(btn, true, 'prof.planning');
+  if (!quiet) {
+    setBusy(btn, true, 'prof.planning');
+    renderSkeleton();
+    if (!tourAfter) scrollToEl($('#results'));
+  }
   try {
     state.household.language = getLanguage();
-    state.plan = await api('/api/plan', { body: { household: state.household } });
+    const wait = quiet ? Promise.resolve() : pause(MIN_SKELETON_MS);
+    const [plan] = await Promise.all([api('/api/plan', { body: { household: state.household } }), wait]);
+    state.plan = plan;
     renderResults();
     announce(t('res.updated', { n: state.plan.plan.actions.length }));
-    if (!quiet) {
-      const results = $('#results');
-      scrollToEl(results);
-      results.focus({ preventScroll: true });
-    }
+    if (tourAfter) tour.start();
+    else if (!quiet) $('#results').focus({ preventScroll: true });
   } catch (err) {
+    if (!state.plan) $('#results').hidden = true;
+    else $('#results').setAttribute('aria-busy', 'false');
     showError(errorEl, errorText(err));
+    if (!quiet) scrollToEl($('#profile'));
   } finally {
     state.busy = false;
     if (!quiet) setBusy(btn, false);
   }
 }
 
-async function loadDemo(button) {
+async function loadDemo(button, { tour: withTour = false } = {}) {
+  if (tour.active) tour.stop();
   if (button) setBusy(button, true, 'demo.loading');
   try {
     state.household = await api(`/api/demo?language=${getLanguage()}`, { method: 'GET' });
@@ -768,7 +898,7 @@ async function loadDemo(button) {
     askLog.length = 0;
     saveHousehold();
     renderProfile();
-    await requestPlan();
+    await requestPlan({ tour: withTour });
   } catch (err) {
     showError($('#parse-error'), errorText(err));
     scrollToEl($('#start'));
@@ -814,6 +944,8 @@ function init() {
   const saved = recall(KEYS.lang);
   setLanguage(saved ?? (navigator.language?.toLowerCase().startsWith('hi') ? 'hi' : 'en'));
   if (recall(KEYS.large) === 'on') document.documentElement.dataset.large = 'on';
+  initFx();
+  heroField = smogField($('#hero-canvas'), { pm: 240 });
   applyI18n();
 
   $('#lang-btn').addEventListener('click', changeLanguage);
@@ -823,6 +955,7 @@ function init() {
     store(KEYS.large, on ? 'on' : 'off');
     $('#large-btn').setAttribute('aria-pressed', String(on));
   });
+  $('#hero-tour').addEventListener('click', () => loadDemo($('#hero-tour'), { tour: true }));
   $('#hero-demo').addEventListener('click', () => loadDemo($('#hero-demo')));
   $('#start-demo').addEventListener('click', () => loadDemo($('#start-demo')));
   $('#parse-form').addEventListener('submit', parseFamily);
@@ -832,8 +965,8 @@ function init() {
   });
 
   const params = new URLSearchParams(location.search);
-  if (params.get('demo') === '1') {
-    loadDemo(null);
+  if (params.get('demo') === '1' || params.get('tour') === '1') {
+    loadDemo(null, { tour: params.get('tour') === '1' });
     return;
   }
   const raw = recall(KEYS.household);

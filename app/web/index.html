@@ -49,29 +49,23 @@
   </header>
 
   <main id="main">
-    <section class="hero" id="top" data-enter aria-labelledby="hero-title">
-      <div class="breath" aria-hidden="true">
-        <svg viewBox="0 0 600 600" focusable="false">
-          <circle class="ring r1" cx="300" cy="300" r="120"/>
-          <circle class="ring r2" cx="300" cy="300" r="180"/>
-          <circle class="ring r3" cx="300" cy="300" r="240"/>
-          <circle class="ring r4" cx="300" cy="300" r="290"/>
-        </svg>
-        <span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span>
-        <span class="dot d4"></span><span class="dot d5"></span><span class="dot d6"></span>
-        <span class="dot d7"></span><span class="dot d8"></span>
-      </div>
+    <section class="hero stage" id="top" data-enter aria-labelledby="hero-title">
+      <div class="smog-host" aria-hidden="true"><canvas class="smog" id="hero-canvas"></canvas></div>
       <div class="wrap hero-grid">
         <div class="hero-copy">
           <p class="eyebrow" data-i18n="hero.eyebrow">Winter smog is a dose problem</p>
           <h1 id="hero-title" data-i18n="hero.title">Plan your family’s day around the air, not just the AQI.</h1>
           <p class="lede" data-i18n="hero.lede">Saans treats each family member as a person breathing a measurable dose of pollution, then rearranges the day to cut it. Every suggestion comes with an exact number.</p>
           <div class="actions">
-            <button type="button" class="btn primary" id="hero-demo">
+            <button type="button" class="btn primary glow" id="hero-tour">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="icons.svg#film"/></svg>
+              <span data-i18n="hero.cta_tour">Watch the demo</span>
+            </button>
+            <button type="button" class="btn secondary" id="hero-demo">
               <span data-i18n="hero.cta_demo">Try the demo family</span>
               <svg class="icon" aria-hidden="true" focusable="false"><use href="icons.svg#arrow-right"/></svg>
             </button>
-            <a class="btn secondary" href="#start" data-i18n="hero.cta_describe">Describe your family</a>
+            <a class="btn quiet" href="#start" data-i18n="hero.cta_describe">Describe your family</a>
           </div>
           <ul class="facts">
             <li><svg class="icon" aria-hidden="true" focusable="false"><use href="icons.svg#shield"/></svg><span data-i18n="hero.fact1">A tested engine does the maths</span></li>
@@ -80,19 +74,25 @@
           </ul>
         </div>
         <div class="hero-card" role="group" aria-labelledby="ex-title">
+          <div class="orb" aria-hidden="true">
+            <svg viewBox="0 0 200 200" focusable="false">
+              <circle class="o1" cx="100" cy="100" r="96"/>
+              <circle class="o2" cx="100" cy="100" r="80"/>
+              <circle class="o3" cx="100" cy="100" r="64"/>
+            </svg>
+            <div class="orb-core">
+              <span class="orb-num" id="orb-num">240</span>
+              <span class="orb-unit" data-i18n="air.unit">µg/m³</span>
+            </div>
+          </div>
+          <p class="orb-label" id="orb-label" data-i18n="hero.orb_example">Example: forecast PM2.5 at 4:00 pm</p>
+          <div class="orb-band" id="orb-band"></div>
           <div class="ex-head">
             <span class="chip tag-chip" data-i18n="ex.tag">Example</span>
             <svg class="icon lg" aria-hidden="true" focusable="false"><use href="icons.svg#shuffle"/></svg>
           </div>
           <h2 id="ex-title" data-i18n="ex.title">Football practice, Aarav</h2>
           <p class="shift" data-i18n="ex.shift">Move from 4:00 pm to 2:00 pm</p>
-          <div class="ex-strip" aria-hidden="true">
-            <span class="c cat-very_poor"></span><span class="c cat-very_poor"></span>
-            <span class="c cat-very_poor"></span><span class="c cat-very_poor"></span>
-            <span class="c cat-very_poor"></span><span class="c cat-very_poor"></span>
-            <span class="c cat-severe"></span><span class="c cat-severe"></span>
-            <span class="pin pin-old"></span><span class="pin pin-new"></span>
-          </div>
           <dl class="ex-stats">
             <div><dt data-i18n="ex.pm_label">Forecast PM2.5</dt><dd data-i18n="ex.pm_value">240 → 140 µg/m³</dd></div>
             <div><dt data-i18n="ex.dose_label">Inhaled dose</dt><dd class="good" data-i18n="ex.dose_value">about 42% lower</dd></div>
@@ -187,16 +187,26 @@
       </div>
     </section>
 
-    <div id="results" hidden tabindex="-1" aria-labelledby="res-title">
-      <section class="results-head" aria-labelledby="res-title">
-        <div class="wrap">
+    <div id="results" hidden tabindex="-1" aria-labelledby="res-title" aria-busy="false">
+      <section class="results-head stage" id="problem" aria-labelledby="res-title">
+        <div class="smog-host" aria-hidden="true"><canvas class="smog" id="res-canvas"></canvas></div>
+        <div class="wrap" id="problem-body">
+          <p class="eyebrow" data-i18n="story.problem">The problem</p>
           <h2 id="res-title" class="section-title" data-i18n="res.title">Today’s plan</h2>
-          <div class="badges" id="res-badges"></div>
-          <p class="summary" id="res-summary"></p>
+          <div class="problem-grid">
+            <div class="problem-copy">
+              <p class="summary" id="res-summary"></p>
+              <div class="badges" id="res-badges"></div>
+            </div>
+            <div class="big-number" id="res-number"></div>
+          </div>
+          <div id="res-scale"></div>
         </div>
       </section>
       <section class="block" id="air" aria-labelledby="air-title"><div class="wrap" id="air-body"></div></section>
-      <section class="block alt" id="timeline" aria-labelledby="tl-title"><div class="wrap" id="timeline-body"></div></section>
+      <section class="block alt" id="family" aria-labelledby="fam-title"><div class="wrap" id="family-body"></div></section>
+      <section class="block" id="timeline" aria-labelledby="tl-title"><div class="wrap" id="timeline-body"></div></section>
+      <section class="block alt" id="commute" aria-labelledby="commute-title"><div class="wrap" id="commute-body"></div></section>
       <section class="block" id="ledger" aria-labelledby="led-title"><div class="wrap" id="ledger-body"></div></section>
       <section class="block alt" id="ladder" aria-labelledby="ladder-title"><div class="wrap" id="ladder-body"></div></section>
       <section class="block" id="home" aria-labelledby="home-title"><div class="wrap" id="home-body"></div></section>
