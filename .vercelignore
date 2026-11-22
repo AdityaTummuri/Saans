@@ -1,0 +1,21 @@
+# Keep the bundle to what the function needs: app/, api/, fixtures/, requirements.txt,
+# pyproject.toml, README.md and LICENSE (pyproject reads them).
+tests/
+docs/
+.github/
+.git/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+Dockerfile
+.dockerignore
+.env
+.env.*
+.DS_Store

@@ -48,7 +48,7 @@ def get_backend(request: Request) -> LLMBackend | None:
 def limited(request: Request) -> None:
     limiter: TokenBucketLimiter = request.app.state.limiter
     settings: Settings = request.app.state.settings
-    enforce(limiter, request, settings.trust_proxy_headers)
+    enforce(limiter, request, settings.trust_proxy_headers, settings.proxy_client_hop)
 
 
 SettingsDep = Annotated[Settings, Depends(get_settings_dep)]

@@ -42,19 +42,25 @@ class TokenBucketLimiter:
         self._buckets[client] = (tokens, now)
 
 
-def client_ip(request: Request, trust_proxy_headers: bool) -> str:
-    """The caller's address. Behind Cloud Run the last X-Forwarded-For hop is the real client."""
+def client_ip(request: Request, trust_proxy_headers: bool, hop: str = "last") -> str:
+    """The caller's address. Cloud Run appends the real client as the last X-Forwarded-For hop;
+    Vercel overwrites the header, so the client is the first (with X-Real-IP as a fallback)."""
     if trust_proxy_headers:
         forwarded = request.headers.get("x-forwarded-for", "")
         hops = [h.strip() for h in forwarded.split(",") if h.strip()]
         if hops:
-            return hops[-1]
+            return hops[0] if hop == "first" else hops[-1]
+        real = request.headers.get("x-real-ip", "").strip()
+        if hop == "first" and real:
+            return real
     return request.client.host if request.client else "unknown"
 
 
-def enforce(limiter: TokenBucketLimiter, request: Request, trust_proxy_headers: bool) -> None:
+def enforce(
+    limiter: TokenBucketLimiter, request: Request, trust_proxy_headers: bool, hop: str = "last"
+) -> None:
     """Raise 429 with Retry-After when the caller is over the limit."""
-    wait = limiter.check(client_ip(request, trust_proxy_headers))
+    wait = limiter.check(client_ip(request, trust_proxy_headers, hop))
     if wait > 0:
         raise HTTPException(
             status_code=429,

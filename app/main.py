@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.gzip import GZipMiddleware
@@ -60,8 +60,11 @@ def create_app(
     settings = settings or get_settings()
     inject = services is not None or backend is not None
 
-    @asynccontextmanager
-    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    def init_state(app: FastAPI) -> None:
+        """Set up shared state once. Runs from the lifespan, or on the first request when the
+        host (for example a serverless runtime) does not run the ASGI lifespan."""
+        if getattr(app.state, "ready", False):
+            return
         app.state.settings = settings
         app.state.limiter = TokenBucketLimiter(
             settings.rate_limit_per_minute, settings.rate_limit_burst
@@ -75,12 +78,26 @@ def create_app(
                 log.warning("MAPS_API_KEY is not set; live endpoints are disabled")
                 app.state.services = None
             app.state.backend = build_backend(settings)
+        app.state.ready = True
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        init_state(app)
         yield
         if app.state.services is not None and not inject:
             await app.state.services.aclose()
+        app.state.ready = False
 
     app = FastAPI(title="Saans", lifespan=lifespan, docs_url=None, redoc_url=None)
     install_security(app, settings)
+
+    @app.middleware("http")
+    async def lazy_state(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        init_state(request.app)
+        return await call_next(request)
+
     app.add_middleware(GZipMiddleware, minimum_size=1024)
     app.include_router(router)
 

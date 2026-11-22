@@ -12,6 +12,9 @@ htmlcov/
 build/
 dist/
 
+# Vercel
+.vercel/
+
 # Secrets
 .env
 .env.*

@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -55,9 +56,15 @@ class Settings(BaseSettings):
     max_text_chars: int = 2000
     rate_limit_per_minute: int = 10
     rate_limit_burst: int = 5
-    # Behind Cloud Run the last X-Forwarded-For hop is the real client address.
-    # Cloud Run sets K_SERVICE, so the header is trusted there and nowhere else by default.
-    trust_proxy_headers: bool = Field(default_factory=lambda: "K_SERVICE" in os.environ)
+    # Proxy headers are trusted only on hosts known to set them: Cloud Run (K_SERVICE) appends the
+    # real client as the last X-Forwarded-For hop; Vercel (VERCEL) overwrites the header, so the
+    # client is the first entry. Anywhere else the socket address is used.
+    trust_proxy_headers: bool = Field(
+        default_factory=lambda: "K_SERVICE" in os.environ or "VERCEL" in os.environ
+    )
+    proxy_client_hop: Literal["first", "last"] = Field(
+        default_factory=lambda: "first" if "VERCEL" in os.environ else "last"
+    )
 
 
 @lru_cache

@@ -127,7 +127,7 @@ Open <http://127.0.0.1:8000>. Add `?demo=1` to the URL to load the demo househol
 
 In demo mode the four Google endpoints are answered from recorded responses in `fixtures/demo`, through the same adapters and parsing code as production. Without a Gemini key, the explanations and Ask answers come from deterministic engine templates. To use live data set `MAPS_API_KEY` and either `GEMINI_API_KEY` (AI Studio) or `USE_VERTEX=true` with `GOOGLE_CLOUD_PROJECT`.
 
-## Deploy
+## Deploy to Cloud Run
 
 ```bash
 gcloud run deploy saans --source . --region asia-south1 \
@@ -137,6 +137,16 @@ gcloud run deploy saans --source . --region asia-south1 \
 ```
 
 Grant the service account the Vertex AI User and Secret Manager Secret Accessor roles.
+
+## Deploy to Vercel
+
+1. Import the repository in Vercel. Framework preset: **Other**; leave build and output settings empty. `vercel.json` rewrites every path to the Python function in `api/index.py`, which serves the API and the web UI, and bundles `app/web` and `fixtures`. Dependencies come from `requirements.txt` and the Python version from `.python-version`.
+2. Set environment variables (Project Settings, Environment Variables):
+   - Keyless demo: `DEMO_MODE=true`.
+   - Live: `MAPS_API_KEY` and `GEMINI_API_KEY` (leave `DEMO_MODE` unset or `false`).
+3. Deploy. The CLI alternative is `vercel --prod` from the repository root.
+
+The app starts its shared state on the first request, so it does not depend on the ASGI lifespan. On Vercel the client address is the first `X-Forwarded-For` entry. Rate limits and the forecast cache are per function instance, so they are approximate on serverless.
 
 ## Licence
 
